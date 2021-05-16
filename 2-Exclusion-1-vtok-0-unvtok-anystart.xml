@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+const int n = 5; // Number of tasks (nodes)
+const int k = 2; // Number of tokens for k-exclusion
+
+chan message[n][n];  //message[i][j], means send message from i to j.
+chan broad[n][n];
+int testV = 0;
+
+int[0,n] nb[n][2] = {{4,1},{0,2},{1,3},{2,4},{3,0}};         // 5 nodes. Neighbors of node i, nb[i][0] = prev, nb[i][1] = next
+//int[0,n] nb[n][2] = {{3,1},{0,2},{1,3},{2,0}};               // 4 nodes. Neighbors of node i, nb[i][0] = prev, nb[i][1] = next
+//int[0,n] nb[n][2] = {{5,1},{0,2},{1,3},{2,4},{3,5},{4,0}};     // 6 nodes. Neighbors of node i, nb[i][0] = prev, nb[i][1] = next
+
+int count = 0; // Number of nodes in CS
+clock gc;
+
+int countM = 0; // number of message sends out before the node is ready..
+
+
+// Data struct to hold the state of each node.
+struct{
+    int[0,1] requesting;     // Requesting to enter CS
+    int[0,k] numTokens;      // Number of tokens held
+    int[0,1] inCS;           // In critical section (must hold at least one token)
+    int[0,n] tokenV1;         // the value of token
+    int[0,n] tokenV2;         // the value of token
+    bool valid;              // whether the token is valid, we set the first token seen by node 0 is valid.
+    bool ready;              // the whole ring is ready to allow some node enter into CS.
+    int[0,n] seen;           // mark whether has seen a token before. 0 for not, 1 for yes; only used for basenode, here is node 0.
+}  S[n] = {{0,0,0,0,0,0,0,0},{0,0,0,1,1,0,0,0},{0,1,0,2,2,0,0,0},{0,0,0,3,3,0,0,0},{0,0,0,4,4,0,0,0}};        //5 nodes
+
+// S[n] = {{0,0,0,0,0,0,0},{0,1,0,1,0,0,0},{0,1,0,2,0,0,0},{0,1,0,3,0,0,0}};        // 4 nodes
+
+
+
+// update the state of each node to check whether hold the token, if yes, numTokens ++.
+void updateState(int[0,n] id)
+{
+    if(id == 0)
+    {
+        if(S[id].tokenV1 == S[nb[id][0]].tokenV1)
+        {
+            S[id].tokenV1 = (S[id].tokenV1 + 1) % n;
+            S[id].valid = S[nb[id][0]].valid;
+            if(S[id].seen &lt;= k  )
+                S[id].seen ++;
+            if(S[id].seen == 2)
+            {
+                S[id].ready = 1;
+               // gc = 0;
+            }         
+            if(S[id].numTokens &lt; k)
+                S[id].numTokens++;            
+        }
+        else if(S[id].tokenV2 == S[nb[id][0]].tokenV2)
+        {
+            S[id].tokenV2 = (S[id].tokenV2 + 1) % n;
+            S[id].valid = S[nb[id][0]].valid;
+            if(S[id].seen &lt;= k  )
+                S[id].seen ++;
+            if(S[id].seen == 2)
+            {
+                S[id].ready = 1;
+               // gc = 0;
+            }         
+            if(S[id].numTokens &lt; k)
+                S[id].numTokens++;
+        }       
+        else
+        {
+            if(S[id].seen &lt;=k )
+                S[id].seen ++;
+            S[id].valid = 1;
+            if(S[id].seen == k)
+            {
+                S[id].ready = 1;
+                gc = 0;
+            }              
+        }
+    }
+    else
+    {
+        if(S[id].tokenV1 != S[nb[id][0]].tokenV1)
+        {                                 
+            if((S[nb[id][0]].valid == 0 &amp;&amp; S[id].valid == 0) ||
+               (S[nb[id][0]].valid == 1 &amp;&amp; S[id].numTokens == 0) ||
+               (S[nb[id][0]].valid == 1 &amp;&amp; S[id].numTokens == 1 &amp;&amp; S[id].valid == 1) )
+            {
+                if(S[id].numTokens  &lt; k)
+                    S[id].numTokens++;
+            }    
+            else if(S[nb[id][0]].valid == 1 &amp;&amp; S[id].numTokens &gt; 1)
+                 S[id].numTokens = 1;                                      
+            S[id].tokenV1 = S[nb[id][0]].tokenV1;
+            S[id].valid = S[nb[id][0]].valid;
+            S[id].ready = S[nb[id][0]].ready;            
+        }
+        else if(S[id].tokenV2 != S[nb[id][0]].tokenV2)
+        {
+            if((S[nb[id][0]].valid == 0 &amp;&amp; S[id].valid == 0) ||
+               (S[nb[id][0]].valid == 1 &amp;&amp; S[id].numTokens == 0) ||
+               (S[nb[id][0]].valid == 1 &amp;&amp; S[id].numTokens == 1 &amp;&amp; S[id].valid == 1) )
+            {
+                if(S[id].numTokens  &lt; k)
+                    S[id].numTokens++;
+            } 
+            else if(S[nb[id][0]].valid == 1 &amp;&amp; S[id].numTokens &gt; 1)
+                 S[id].numTokens = 1;
+            S[id].tokenV2 = S[nb[id][0]].tokenV2;
+            S[id].valid = S[nb[id][0]].valid;
+            S[id].ready = S[nb[id][0]].ready;           
+        }
+    }  
+}
+
+void updateCountM()
+{
+    if(countM &lt; 20)
+        countM ++;
+}
+
+
+</declaration>
+	<template>
+		<name x="5" y="5">Node</name>
+		<parameter>const int id</parameter>
+		<declaration>clock c;
+
+
+</declaration>
+		<location id="id0" x="-612" y="-42">
+			<name x="-637" y="-25">CS</name>
+		</location>
+		<location id="id1" x="-204" y="-34">
+			<name x="-212" y="0">NonCS</name>
+			<label kind="invariant" x="-214" y="-17">c &lt;= 4</label>
+		</location>
+		<location id="id2" x="-153" y="136">
+			<committed/>
+		</location>
+		<location id="id3" x="-433" y="-136">
+			<committed/>
+		</location>
+		<location id="id4" x="51" y="136">
+			<committed/>
+		</location>
+		<location id="id5" x="51" y="76">
+			<committed/>
+		</location>
+		<location id="id6" x="51" y="17">
+			<committed/>
+		</location>
+		<location id="id7" x="365" y="-195">
+			<label kind="invariant" x="382" y="-204">c &lt;= 4</label>
+		</location>
+		<init ref="id3"/>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-340" y="-25">c &lt;= 4</label>
+			<label kind="assignment" x="-340" y="-8">c = 0</label>
+			<nail x="-297" y="8"/>
+			<nail x="-297" y="-25"/>
+		</transition>
+		<transition>
+			<source ref="id7"/>
+			<target ref="id1"/>
+			<label kind="guard" x="306" y="-323">id == 0 &amp;&amp;
+c == 4</label>
+			<label kind="assignment" x="306" y="-289">c = 0</label>
+			<nail x="365" y="-297"/>
+			<nail x="246" y="-297"/>
+		</transition>
+		<transition>
+			<source ref="id7"/>
+			<target ref="id1"/>
+			<label kind="guard" x="221" y="-280">id &gt; 0 &amp;&amp;
+c == 4</label>
+			<label kind="synchronisation" x="221" y="-246">broad[id][nb[id][1]]!</label>
+			<label kind="assignment" x="221" y="-229">c = 0</label>
+			<nail x="340" y="-246"/>
+			<nail x="221" y="-246"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id7"/>
+			<label kind="synchronisation" x="144" y="-170">broad[nb[id][0]][id]?</label>
+			<label kind="assignment" x="161" y="-153">c = 0</label>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="guard" x="365" y="-170">id == 0 &amp;&amp;
+S[id].numTokens == 0 &amp;&amp;
+S[id].valid == 1 &amp;&amp;
+gc &lt;= 16 &amp;&amp;
+c == 4</label>
+			<label kind="synchronisation" x="365" y="-85">broad[id][nb[id][1]]!</label>
+			<label kind="assignment" x="365" y="-68">c = 0</label>
+			<nail x="358" y="-67"/>
+			<nail x="357" y="-161"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id4"/>
+			<label kind="guard" x="365" y="-25">id == 0 &amp;&amp;
+S[id].numTokens == 0 &amp;&amp;
+S[id].valid == 1 &amp;&amp;
+S[id].ready == 0 &amp;&amp;
+gc &gt;= 32</label>
+			<label kind="assignment" x="365" y="68">c = 0</label>
+			<nail x="357" y="-34"/>
+			<nail x="357" y="136"/>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-119" y="34">S[id].numTokens == 0</label>
+			<nail x="-1" y="59"/>
+			<nail x="-102" y="59"/>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-110" y="-17">S[id].numTokens == 1</label>
+			<label kind="assignment" x="-110" y="0">S[id].numTokens --</label>
+		</transition>
+		<transition>
+			<source ref="id5"/>
+			<target ref="id6"/>
+			<label kind="synchronisation" x="51" y="29">message[id][nb[id][1]]!</label>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="60" y="102">message[id][nb[id][1]]!</label>
+		</transition>
+		<transition>
+			<source ref="id2"/>
+			<target ref="id4"/>
+			<label kind="guard" x="-136" y="110">id == 0 &amp;&amp; 
+S[id].ready == 1 &amp;&amp;
+S[id].seen == k &amp;&amp;
+S[id].numTokens &lt; k</label>
+		</transition>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-535" y="-102">id != 0  ||
+(id == 0 &amp;&amp; S[id].numTokens == 0)</label>
+			<nail x="-408" y="-51"/>
+		</transition>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="synchronisation" x="-756" y="-85">message[nb[id][0]][id]?</label>
+			<label kind="assignment" x="-756" y="-68">updateState(id),
+updateCountM()</label>
+			<nail x="-696" y="-42"/>
+			<nail x="-696" y="-8"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-136" y="-306">S[id].numTokens &gt;= 1  &amp;&amp;
+((id == 0 &amp;&amp; S[id].ready == 1) ||
+  (id != 0))  &amp;&amp;
+c == 4</label>
+			<label kind="synchronisation" x="-136" y="-238">message[id][nb[id][1]]!</label>
+			<label kind="assignment" x="-136" y="-221">S[id].numTokens--,
+c = 0</label>
+			<nail x="-144" y="-187"/>
+			<nail x="-144" y="-280"/>
+		</transition>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-365" y="-161">id == 0 &amp;&amp;
+S[id].numTokens == 1</label>
+			<label kind="assignment" x="-365" y="-119">S[id].valid = 1,
+S[id].seen = 1</label>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="synchronisation" x="-357" y="93">message[nb[id][0]][id]?</label>
+			<label kind="assignment" x="-357" y="110">updateState(id),
+c = 0,
+updateCountM()</label>
+			<nail x="-272" y="85"/>
+			<nail x="-272" y="136"/>
+		</transition>
+		<transition>
+			<source ref="id2"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-221" y="25">id != 0 ||
+S[id].ready == 0 ||
+S[id].seen != k ||
+(id == 0 &amp;&amp; S[id].numTokens == k)</label>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-136" y="-161">S[id].requesting==0</label>
+			<label kind="assignment" x="-135" y="-144">S[id].requesting=1</label>
+			<nail x="-144" y="-119"/>
+			<nail x="-144" y="-161"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-560" y="8">S[id].requesting==1 &amp;&amp;
+S[id].numTokens &gt;=1 &amp;&amp;
+S[id].valid == 1 &amp;&amp;
+S[id].ready == 1</label>
+			<label kind="assignment" x="-561" y="85">count++,
+S[id].inCS=1,
+S[id].requesting=0,
+c=0</label>
+			<nail x="-306" y="59"/>
+			<nail x="-510" y="59"/>
+		</transition>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="synchronisation" x="-476" y="-246">message[id][nb[id][1]]!</label>
+			<label kind="assignment" x="-476" y="-229">S[id].numTokens--,
+count--,
+S[id].inCS=0,
+c = 0</label>
+			<nail x="-612" y="-229"/>
+			<nail x="-205" y="-229"/>
+		</transition>
+	</template>
+	<system>// Place template instantiations here.
+N0 = Node(0);
+N1 = Node(1);
+N2 = Node(2);
+N3 = Node(3);
+N4 = Node(4);
+
+
+// List one or more processes to be composed into a system.
+system N0,N1,N2,N3,N4;</system>
+	<queries>
+		<query>
+			<formula>E&lt;&gt; (N2.CS &amp;&amp; N1.CS)</formula>
+			<comment>there is no two nodes in CS at the same time.</comment>
+		</query>
+		<query>
+			<formula>A[] (count &lt;= 1)</formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>A[] (count &lt;= k)</formula>
+			<comment>always there is only one node in CS.</comment>
+		</query>
+		<query>
+			<formula>A[] (not deadlock)</formula>
+			<comment>will not deadlock</comment>
+		</query>
+	</queries>
+</nta>
