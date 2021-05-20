@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+const int n = 5; // Number of tasks (nodes)
+const int k = 2; // Number of tokens for k-exclusion
+
+chan request[n];
+urgent chan granted[n];
+urgent chan token;
+
+int[0,n] nb[n][2] = {{4,1},{0,2},{1,3},{2,4},{3,0}}; // Neighbors of node i, nb[i][0] = prev, nb[i][1] = next
+int count = 0; // Number of nodes in CS
+
+// Data struct to hold the state of each node.
+struct{
+    int[0,1] requesting;     // Requesting to enter CS
+    int[0,k] numTokens;      // Number of tokens held
+    int[0,1] inCS;           // In critical section (must hold at least one token)
+} S[n] = {{0,1,0},{0,0,0},{0,1,0},{0,0,0},{0,0,0}};
+
+</declaration>
+	<template>
+		<name>Observer</name>
+		<parameter>int id</parameter>
+		<declaration>clock x;</declaration>
+		<location id="id0" x="-1062" y="-535">
+		</location>
+		<location id="id1" x="-1062" y="-467">
+		</location>
+		<location id="id2" x="-1062" y="-399">
+			<name x="-1045" y="-408">BAD</name>
+		</location>
+		<init ref="id0"/>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="synchronisation" x="-1020" y="-569">token?</label>
+			<nail x="-1062" y="-578"/>
+			<nail x="-1028" y="-578"/>
+			<nail x="-1028" y="-544"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="synchronisation" x="-1181" y="-510">granted[id]?</label>
+			<nail x="-1096" y="-467"/>
+			<nail x="-1096" y="-535"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="guard" x="-1054" y="-442">x&gt;40</label>
+		</transition>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="synchronisation" x="-1054" y="-518">request[id]?</label>
+			<label kind="assignment" x="-1054" y="-501">x=0</label>
+		</transition>
+	</template>
+	<template>
+		<name x="5" y="5">Node</name>
+		<parameter>const int id</parameter>
+		<declaration>clock c;
+
+// Pass token
+void passToken(int[0,n] i)
+{
+    S[i].numTokens--;
+    S[nb[i][1]].numTokens++;
+}
+
+</declaration>
+		<location id="id3" x="-536" y="-42">
+			<name x="-561" y="-25">CS</name>
+			<label kind="invariant" x="-510" y="-51">c&lt;=10</label>
+		</location>
+		<location id="id4" x="-205" y="-34">
+			<name x="-229" y="-17">NonCS</name>
+		</location>
+		<init ref="id4"/>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id4"/>
+			<label kind="guard" x="-144" y="-34">S[id].requesting==0</label>
+			<label kind="synchronisation" x="-144" y="-17">request[id]!</label>
+			<label kind="assignment" x="-144" y="0">S[id].requesting=1</label>
+			<nail x="-153" y="-34"/>
+			<nail x="-153" y="17"/>
+		</transition>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id3"/>
+			<label kind="guard" x="-450" y="-119">S[id].numTokens&gt;1</label>
+			<label kind="assignment" x="-450" y="-102">passToken(id)</label>
+			<nail x="-459" y="-119"/>
+			<nail x="-459" y="-76"/>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id4"/>
+			<label kind="guard" x="-110" y="-161">S[id].numTokens&gt;=1 &amp;&amp;
+S[id].requesting==0</label>
+			<label kind="synchronisation" x="-110" y="-93">token!</label>
+			<label kind="assignment" x="-110" y="-119">passToken(id)</label>
+			<nail x="-120" y="-110"/>
+			<nail x="-120" y="-164"/>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id3"/>
+			<label kind="guard" x="-442" y="-17">S[id].requesting==1 &amp;&amp;
+S[id].numTokens&gt;=1</label>
+			<label kind="synchronisation" x="-442" y="110">granted[id]!</label>
+			<label kind="assignment" x="-442" y="25">count++,
+S[id].inCS=1,
+S[id].requesting=0,
+c=0</label>
+			<nail x="-273" y="26"/>
+			<nail x="-468" y="26"/>
+		</transition>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id4"/>
+			<label kind="guard" x="-425" y="-255">c==10</label>
+			<label kind="assignment" x="-425" y="-229">passToken(id),
+count--,
+S[id].inCS=0</label>
+			<nail x="-536" y="-229"/>
+			<nail x="-205" y="-229"/>
+		</transition>
+	</template>
+	<system>// Place template instantiations here.
+N0 = Node(0);
+N1 = Node(1);
+N2 = Node(2);
+N3 = Node(3);
+N4 = Node(4);
+Obs0 = Observer(0);
+Obs1 = Observer(1);
+Obs2 = Observer(2);
+Obs3 = Observer(3);
+Obs4 = Observer(4);
+
+// List one or more processes to be composed into a system.
+system N0,N1,N2,N3,N4,Obs0,Obs1,Obs2,Obs3,Obs4;</system>
+	<queries>
+		<query>
+			<formula>E&lt;&gt; (N2.CS &amp;&amp; N1.CS)</formula>
+			<comment>there is no two nodes in CS at the same time.</comment>
+		</query>
+		<query>
+			<formula>A[] (count &lt;= k)</formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>A[] (count &lt; k)</formula>
+			<comment>the number of nodes in CS is at most 1.</comment>
+		</query>
+		<query>
+			<formula>A[] (not Obs1.BAD)
+</formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>A[] (not deadlock)</formula>
+			<comment>will not deadlock</comment>
+		</query>
+	</queries>
+</nta>
