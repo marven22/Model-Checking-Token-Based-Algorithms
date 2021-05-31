@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+const int n = 5;  // Number of tasks (nodes)
+const int k = 3;  // Number of tokens for k-exclusion
+const int m = 2;
+const int j = n-m; // Number of tokens for m-inclusion j = n - m
+
+// Neighbors of node i, nb[i][0] = prev, nb[i][1] = next
+int[0,n] nb[n][2] = {{4,1},{0,2},{1,3},{2,4},{3,0}}; 
+int countIn = 2;  // Number of nodes in CS = m = 2
+int countOut = 3; // Number of nodes out of CS = n - m = 3
+
+// Data struct to hold the state of each node.
+struct{
+    int[0,1] requesting;     // Requesting to enter CS
+    int[0,k] numTokens;      // Number of tokens held
+    int[0,1] inCS;           // In critical section (must hold at least one in token)
+    int[0,1] requestingOut;  // Requesting to leave CS
+    int[0,j] numOutTokens;   // Number of out tokens held
+    int[0,1] outCS;          // Out critical section (must hold at least one out token)
+} S[n] = {{0,1,1,0,0,0},
+          {0,1,0,0,1,1},
+          {0,1,1,0,0,0},
+          {0,0,0,0,1,1},
+          {0,0,0,0,1,1}};
+
+
+
+
+</declaration>
+	<template>
+		<name x="5" y="5">Node</name>
+		<parameter>const int id</parameter>
+		<declaration>clock c;
+
+// Pass token
+void passToken(int[0,n] i)
+{
+    S[i].numTokens--;
+    S[nb[i][1]].numTokens++;
+}
+
+// Pass out token
+void passOutToken(int[0,n] i)
+{
+    S[i].numOutTokens--;
+    S[nb[i][1]].numOutTokens++;
+}
+
+</declaration>
+		<location id="id0" x="-536" y="-42">
+			<name x="-544" y="-25">CS</name>
+			<label kind="invariant" x="-510" y="-42">c&lt;=10</label>
+		</location>
+		<location id="id1" x="-205" y="-34">
+			<name x="-229" y="-17">NonCS</name>
+			<label kind="invariant" x="-263" y="-42">c&lt;=20</label>
+		</location>
+		<location id="id2" x="-382" y="-340">
+			<name x="-392" y="-374">Init</name>
+			<committed/>
+		</location>
+		<init ref="id2"/>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-782" y="-229">S[id].numOutTokens&gt;=1 &amp;&amp;
+S[id].requestingOut==0</label>
+			<label kind="assignment" x="-782" y="-187">passOutToken(id)</label>
+			<nail x="-603" y="-246"/>
+			<nail x="-603" y="-136"/>
+		</transition>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-739" y="-25">S[id].requestingOut==0</label>
+			<label kind="assignment" x="-739" y="0">S[id].requestingOut=1</label>
+			<nail x="-586" y="-25"/>
+			<nail x="-586" y="25"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-136" y="-127">S[id].numOutTokens&gt;1</label>
+			<label kind="assignment" x="-136" y="-110">passOutToken(id)</label>
+			<nail x="-144" y="-128"/>
+			<nail x="-144" y="-77"/>
+		</transition>
+		<transition>
+			<source ref="id2"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-348" y="-331">S[id].outCS==1</label>
+			<label kind="assignment" x="-348" y="-314">c=0</label>
+			<nail x="-229" y="-340"/>
+			<nail x="-204" y="-272"/>
+		</transition>
+		<transition>
+			<source ref="id2"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-518" y="-331">S[id].inCS==1</label>
+			<label kind="assignment" x="-518" y="-314">c=0</label>
+			<nail x="-527" y="-340"/>
+			<nail x="-544" y="-272"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-144" y="-34">S[id].requesting==0</label>
+			<label kind="assignment" x="-144" y="-17">S[id].requesting=1</label>
+			<nail x="-153" y="-34"/>
+			<nail x="-153" y="8"/>
+		</transition>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-450" y="-119">S[id].numTokens&gt;1</label>
+			<label kind="assignment" x="-450" y="-102">passToken(id)</label>
+			<nail x="-459" y="-119"/>
+			<nail x="-459" y="-76"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-136" y="-246">S[id].numTokens&gt;=1 &amp;&amp;
+S[id].requesting==0</label>
+			<label kind="assignment" x="-136" y="-204">passToken(id)</label>
+			<nail x="-153" y="-153"/>
+			<nail x="-153" y="-238"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-442" y="-17">S[id].requesting==1 &amp;&amp;
+S[id].numTokens&gt;=1</label>
+			<label kind="assignment" x="-442" y="25">countIn++, countOut--,
+S[id].inCS=1,
+S[id].outCS=0,
+S[id].requesting=0,
+passOutToken(id),
+c=0</label>
+			<nail x="-273" y="26"/>
+			<nail x="-468" y="26"/>
+		</transition>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-459" y="-272">S[id].requestingOut==1 &amp;&amp;
+S[id].numOutTokens&gt;=1</label>
+			<label kind="assignment" x="-459" y="-229">S[id].requestingOut=1,
+passToken(id),
+countIn--, countOut++,
+S[id].inCS=0,
+S[id].outCS=1, c=0</label>
+			<nail x="-493" y="-229"/>
+			<nail x="-263" y="-229"/>
+		</transition>
+	</template>
+	<system>// Place template instantiations here.
+N0 = Node(0);
+N1 = Node(1);
+N2 = Node(2);
+N3 = Node(3);
+N4 = Node(4);
+//Obs0 = Observer(0);
+//Obs1 = Observer(1);
+//Obs2 = Observer(2);
+//Obs3 = Observer(3);
+//Obs4 = Observer(4);
+
+// List one or more processes to be composed into a system.
+system N0,N1,N2,N3,N4; // ,Obs0,Obs1,Obs2,Obs3,Obs4;</system>
+	<queries>
+		<query>
+			<formula>E&lt;&gt; (N1.CS &amp;&amp; N2.CS &amp;&amp; N3.CS)</formula>
+			<comment>there is no two nodes in CS at the same time.</comment>
+		</query>
+		<query>
+			<formula>A[] (countIn &lt;= k)&amp;&amp;(countIn &gt;= m)</formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (countIn &gt; k)</formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>A[] (countIn+countOut == 5)</formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>A[] (not deadlock)</formula>
+			<comment>System will not deadlock</comment>
+		</query>
+	</queries>
+</nta>
